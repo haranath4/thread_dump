@@ -1,0 +1,44 @@
+---
+
+- name: thread dump
+  hosts: all
+  become: yes
+  become_user: u1
+  vars:
+    java_home: /home/u1/files/jdk1.8.0_281/bin
+    server_dump_location: /app/oracle
+
+  tasks:
+
+    - name: Get PID of Server
+      shell: "ps -ef | grep -i java | grep -i {{server_name}} | awk '{print $2}' | head -1"
+      register: "server_pid"
+
+    - name: printing adin_server_pid output
+      debug:
+        msg: " {{server_name}} process id: {{server_pid.stdout}} "
+
+    - name: Taking thread dump on the server
+      shell: |
+        #!/bin/bash
+        counter=1
+        while [ $counter -le 3 ]
+        do
+          echo "*****Generating Thread dump #" $counter
+          /home/u1/files/jdk1.8.0_281/bin/jstack "{{server_pid.stdout}}"
+          counter=$(( $counter + 1))
+          sleep 15
+        done
+      register: threaddump
+
+    - name: printing thread dump output
+      debug:
+        msg: "{{ threaddump | regex_replace('\\n', '\n') }}"
+
+    - name: copying the server threaddump log to  server_dump_location
+      copy:
+        content: "{{ threaddump.stdout }}"
+        dest: "{{server_dump_location}}/threaddump_{{server_name}}.log"
+        owner: u1
+        group: u1
+        mode: 0755
